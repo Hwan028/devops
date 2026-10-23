@@ -1,0 +1,11 @@
+# 맥 시스템 파일
+.DS_Store
+
+# 비밀번호
+.env
+
+# 실행 결과물
+week04/backups/
+week04/restore-check/
+guestbook/keep_web3.log
+__pycache__/
