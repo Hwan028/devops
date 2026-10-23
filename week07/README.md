@@ -78,6 +78,46 @@ guestbook-web-2   ...   Up 35 seconds (healthy)
 ```
 멈추자마자 스크립트가 알아서 web-2 다시 띄워서 3개 유지됨
 
+### 개선 - watcher (이벤트 감시)
+keep_web3.sh는 5초마다 세는 방식이라 최대 5초 빈틈이 있고, 터미널 닫으면 스크립트도 꺼짐
+→ 죽는 순간 바로 반응 + 감시자도 컨테이너로 만들어서 도커가 살리게
+
+```sh
+docker events --filter label=com.docker.compose.service=web --filter event=die \
+  --format '{{.Actor.Attributes.name}}' |
+while read NAME; do
+  docker start "$NAME"
+done
+```
+- `docker events` : 도커에서 일어나는 일 실시간 출력. die = 컨테이너 종료
+- 파이프로 while read에 넘겨서 이벤트 올 때마다 바로 docker start
+- compose에 watcher 서비스로 넣고 `restart: always` + docker.sock 연결 (guestbook/watch_web.sh)
+
+```
+$ docker stop guestbook-web-2; sleep 2; docker compose ps
+guestbook-web-1   Up 14 seconds (healthy)
+guestbook-web-2   Up 2 seconds (health: starting)   ← 2초 안에 다시 뜸
+guestbook-web-3   Up 14 seconds (healthy)
+
+$ docker compose logs watcher
+[watcher] web 감시 시작
+[watcher] 11:47:15 guestbook-web-2 종료 감지 -> 재시작
+[watcher] guestbook-web-2 다시 실행됨
+```
+
+감시자 자체 테스트로 `docker exec guestbook-watcher-1 kill 1` 했는데 안 죽음
+→ 컨테이너 안 PID 1은 기본 시그널을 무시함. 대신 `pkill -f "docker events"`로 감시 프로세스를 죽여서 확인
+
+```
+$ docker exec guestbook-watcher-1 pkill -f "docker events"
+$ docker compose ps watcher
+guestbook-watcher-1   docker:cli   ...   18 seconds ago   Up 3 seconds   ← 죽었다가 다시 뜸
+$ docker compose logs watcher
+[watcher] web 감시 시작
+[watcher] web 감시 시작    ← 두 번 = restart: always로 다시 시작됨
+```
+감시자도 도커가 살려줌 → keep_web3.sh는 스크립트 꺼지면 끝이었는데 이건 해결
+
 ## 남은 고민
 컴포즈는 컴퓨터 1대 안에서만. 서버 여러대거나 서버가 죽으면 → 쿠버네티스
 
