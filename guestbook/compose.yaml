@@ -53,5 +53,15 @@ services:
       timeout: 3s
       retries: 5
 
+  # 감시자 - web이 죽는 순간 바로 다시 켬
+  # 감시자 자신은 restart: always 라서 죽어도 도커가 다시 살림
+  watcher:
+    image: docker:cli
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # 도커 엔진에 명령 보내려고 연결
+      - ./watch_web.sh:/watch_web.sh:ro
+    command: ["sh", "/watch_web.sh"]
+    restart: always
+
 volumes:
   redis-data:
